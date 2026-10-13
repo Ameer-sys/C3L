@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "start": "docker compose up && bun src/index.ts",
     "test": "bun test",
     "lint": "biome lint .",
     "fix": "biome check --write .",

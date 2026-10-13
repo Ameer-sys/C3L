@@ -1,0 +1,4 @@
+services:
+   example:
+    image: ubuntu:24.04
+    container_name: dev-exmaple
