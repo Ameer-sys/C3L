@@ -26,6 +26,11 @@ import {
   setAssignmentDueDate,
   toDateTimeLocalValue,
 } from './dueDate'
+import {
+  createAssignment,
+  type AssignmentInput,
+  type AssignmentFieldErrors,
+} from './createAssignment'
 
 const base = moduleBase(import.meta.dir)
 
@@ -54,6 +59,11 @@ function renderAssignmentList(courseId: string): string {
         ? `<ul>${items}</ul>`
         : '<p>No assignments found for this course.</p>'
     }
+    <p>
+  <a href="${base}/assignments/new?courseId=${encodeURIComponent(courseId)}">
+    Create assignment
+  </a>
+</p>
     <p><a href="${base}">Back to Module 4</a></p>
   `
 }
@@ -117,6 +127,82 @@ function renderDueDateForm(
   `
 }
 
+
+ // M04-FR-001/002: Render the assignment creation form.
+function renderCreateAssignmentForm(
+  input: AssignmentInput,
+  errors: AssignmentFieldErrors = {},
+): string {
+  const courseId = input.courseId ?? ''
+  const title = input.title ?? ''
+  const description = input.description ?? ''
+  const dueDate = input.dueDate ?? ''
+
+  const errorMessage = (message?: string): string =>
+    message
+      ? `<p role="alert"><strong>Error:</strong> ${escapeHtml(message)}</p>`
+      : ''
+
+  return `
+    <h1>Create Assignment</h1>
+
+    <p>Course: ${escapeHtml(courseId)}</p>
+
+    <form method="post" action="${base}/assignments/new">
+      <input
+        type="hidden"
+        name="courseId"
+        value="${escapeHtml(courseId)}"
+      >
+
+      <div>
+        <label for="title">Assignment title</label>
+        <input
+          type="text"
+          id="title"
+          name="title"
+          value="${escapeHtml(title)}"
+          maxlength="200"
+        >
+        ${errorMessage(errors.title)}
+      </div>
+
+      <div>
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          maxlength="5000"
+          rows="5"
+        >${escapeHtml(description)}</textarea>
+        ${errorMessage(errors.description)}
+      </div>
+
+      <div>
+        <label for="dueDate">Due date and time (Toronto time)</label>
+        <input
+          type="datetime-local"
+          id="dueDate"
+          name="dueDate"
+          value="${escapeHtml(dueDate)}"
+        >
+        ${errorMessage(errors.dueDate)}
+      </div>
+
+      ${errorMessage(errors.courseId)}
+
+      <button type="submit">Create assignment</button>
+    </form>
+
+    <p>
+      <a href="${base}/assignments?courseId=${encodeURIComponent(courseId)}">
+        Back to assignments
+      </a>
+    </p>
+  `
+}
+
+
 const assignmentNotFound = `
   <h1>Assignment not found</h1>
   <p><a href="${base}">Back to Module 4</a></p>
@@ -156,6 +242,70 @@ export default defineModule({
 
       return renderAssignmentList(courseId)
     })
+
+    
+    // M04-FR-001: Display the assignment creation form.
+    .get('/assignments/new', ({ query }) => {
+      const courseId =
+        typeof query.courseId === 'string' ? query.courseId : ''
+
+      return renderCreateAssignmentForm({ courseId })
+    })
+
+    // M04-FR-001/002: Validate and create an assignment.
+    .post(
+      '/assignments/new',
+      ({ body, set }) => {
+        const result = createAssignment(body)
+
+        // FR-002: Reject invalid input with actionable errors.
+        if (!result.ok) {
+          set.status = 400
+
+          return renderCreateAssignmentForm(body, result.errors)
+        }
+
+        // FR-001: Confirm successful assignment creation.
+        const assignment = result.assignment
+
+        set.status = 201
+
+        return `
+          <h1>Assignment Created Successfully</h1>
+
+          <p>
+            <strong>${escapeHtml(assignment.title)}</strong>
+            has been created.
+          </p>
+
+          <p>
+            <strong>Assignment ID:</strong>
+            ${escapeHtml(assignment.id)}
+          </p>
+
+          <p>
+            <a href="${base}/assignments/${encodeURIComponent(assignment.id)}">
+              View assignment details
+            </a>
+          </p>
+
+          <p>
+            <a href="${base}/assignments?courseId=${encodeURIComponent(assignment.courseId)}">
+              Back to assignments
+            </a>
+          </p>
+        `
+      },
+      {
+        body: t.Object({
+          courseId: t.Optional(t.String()),
+          title: t.Optional(t.String()),
+          description: t.Optional(t.String()),
+          dueDate: t.Optional(t.String()),
+        }),
+      },
+    )
+
 
     // M04-FR-004: View individual assignment details
     .get('/assignments/:id', ({ params, set }) => {
