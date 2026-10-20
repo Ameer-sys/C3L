@@ -42,3 +42,10 @@ export function listAssignmentsByCourse(
     (assignment) => assignment.courseId === courseId,
   )
 }
+
+export function getAssignmentById(
+  id: string,
+  assignments: readonly Assignment[] = sampleAssignments,
+): Assignment | undefined {
+  return assignments.find((assignment) => assignment.id === id)
+}
