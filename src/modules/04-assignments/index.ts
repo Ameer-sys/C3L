@@ -16,24 +16,62 @@
 //   4. Save. Your new page is at  http://localhost:3000/04-assignments/<your-address>
 import { Elysia } from 'elysia'
 import { defineModule, moduleBase } from '../../core/defineModule'
+import { escapeHtml } from '../../core/pages'
+import { listAssignmentsByCourse } from './assignments'
 
 const base = moduleBase(import.meta.dir)
+
+function renderAssignmentList(courseId: string): string {
+  const assignments = listAssignmentsByCourse(courseId)
+
+  const items = assignments.map((assignment) => `
+    <li>
+      <strong>${escapeHtml(assignment.title)}</strong>
+      <span> — Due: ${escapeHtml(assignment.dueDate)}</span>
+    </li>
+  `).join('')
+
+  return `
+    <h1>Assignments</h1>
+    <p>Course: ${escapeHtml(courseId)}</p>
+    ${
+      assignments.length
+        ? `<ul>${items}</ul>`
+        : '<p>No assignments found for this course.</p>'
+    }
+    <p><a href="${base}">Back to Module 4</a></p>
+  `
+}
 
 export default defineModule({
   name: 'Module 4: Assignment & Submission System',
   description: 'Assignments, due dates, submissions',
 
   router: new Elysia()
-    // Front page of this module. The button on the home page opens it.
     .get(
       '/',
       () => `
         <h1>Module 4: Assignment &amp; Submission System</h1>
-        <p>It works! Replace this page with your own.</p>
-        <p><a href="${base}/hello">Demo page</a></p>
+        <p>Assignment viewing prototype (demo data).</p>
+        <p>
+          <a href="${base}/assignments?courseId=CSCN73030">
+            View CSCN73030 Assignments
+          </a>
+        </p>
         <p><a href="/">Back to the home page</a></p>
       `,
     )
-    // DEMO: this one line is all it takes to add a page.
-    .get('/hello', () => `<h1>Hello from Module 4</h1><a href="${base}">Back</a>`),
+    .get(
+      '/assignments',
+      ({ query }) => {
+        const courseId =
+          typeof query.courseId === 'string' ? query.courseId : ''
+
+        if (!courseId.trim()) {
+          return '<h1>Course ID is required</h1>'
+        }
+
+        return renderAssignmentList(courseId)
+      },
+    ),
 })
