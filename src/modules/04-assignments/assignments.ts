@@ -49,3 +49,9 @@ export function getAssignmentById(
 ): Assignment | undefined {
   return assignments.find((assignment) => assignment.id === id)
 }
+
+
+ // M04-FR-001: Add a newly created assignment to temporary storage.
+export function addAssignment(assignment: Assignment): void {
+  sampleAssignments.push(assignment)
+}
