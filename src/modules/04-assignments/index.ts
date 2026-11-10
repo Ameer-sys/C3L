@@ -17,6 +17,7 @@
 import { Elysia, t } from 'elysia'
 import { defineModule, moduleBase } from '../../core/defineModule'
 import { escapeHtml } from '../../core/pages'
+import { createSubmissionStore, MAX_FILE_BYTES, type Submission } from './submissions'
 import {
   listAssignmentsByCourse,
   getAssignmentById,
@@ -33,6 +34,7 @@ import {
 } from './createAssignment'
 
 const base = moduleBase(import.meta.dir)
+const submissions = createSubmissionStore()
 
 // M04-FR-003: Display assignments associated with a course
 function renderAssignmentList(courseId: string): string {
@@ -93,6 +95,8 @@ function renderAssignmentDetails(id: string): string | null {
       <strong>Due date:</strong>
       ${escapeHtml(formatDueDate(assignment.dueDate))}
     </p>
+
+    <p><a href="${submissionPath(assignment.id)}">Submit assignment file</a></p>
 
     <p>
       <a href="${base}/assignments/${encodeURIComponent(assignment.id)}/due-date">
@@ -203,6 +207,41 @@ function renderCreateAssignmentForm(
 }
 
 
+
+function submissionPath(assignmentId: string): string {
+  return `${base}/assignments/${encodeURIComponent(assignmentId)}/submissions`
+}
+
+function renderSubmissionForm(assignmentId: string, title: string, error?: string): string {
+  return `
+    <h1>Submit assignment file</h1>
+    <p>Assignment: <strong>${escapeHtml(title)}</strong></p>
+    <p>Class demo. Use a sample file. Files reset when the server restarts.</p>
+    ${error ? `<p role="alert">${escapeHtml(error)}</p>` : ''}
+    <form method="post" enctype="multipart/form-data" action="${submissionPath(assignmentId)}">
+      <label for="file">Assignment file (PDF or TXT, up to 5 MB)</label>
+      <input type="file" id="file" name="file" accept=".pdf,.txt" required>
+      <button type="submit">Submit file</button>
+    </form>
+    <p><a href="${base}/assignments/${encodeURIComponent(assignmentId)}">Back to assignment</a></p>
+  `
+}
+
+function renderSubmissionReceipt(submission: Submission): string {
+  const path = `${submissionPath(submission.assignmentId)}/${submission.id}`
+  return `
+    <h1>Submission received</h1>
+    <dl>
+      <dt>Receipt ID</dt><dd>${submission.id}</dd>
+      <dt>File</dt><dd>${escapeHtml(submission.file.name)}</dd>
+      <dt>Received at</dt><dd><time datetime="${submission.submittedAt}">${submission.submittedAt} (UTC)</time></dd>
+    </dl>
+    <p><a href="${path}">Open receipt</a></p>
+    <p><a href="${path}/file">Download submitted file</a></p>
+    <p><a href="${base}/assignments/${encodeURIComponent(submission.assignmentId)}">Back to assignment</a></p>
+  `
+}
+
 const assignmentNotFound = `
   <h1>Assignment not found</h1>
   <p><a href="${base}">Back to Module 4</a></p>
@@ -218,7 +257,7 @@ export default defineModule({
       '/',
       () => `
         <h1>Module 4: Assignment &amp; Submission System</h1>
-        <p>Assignment viewing prototype (demo data).</p>
+        <p>Create and view assignments, set due dates, and submit sample files.</p>
 
         <p>
           <a href="${base}/assignments?courseId=CSCN73030">
@@ -320,6 +359,80 @@ export default defineModule({
       }
 
       return details
+    })
+
+
+    .get('/assignments/:id/submissions', ({ params, set }) => {
+      const assignment = getAssignmentById(params.id)
+      if (!assignment) {
+        set.status = 404
+        return assignmentNotFound
+      }
+      return renderSubmissionForm(assignment.id, assignment.title)
+    })
+
+    .post('/assignments/:id/submissions', async ({ params, request }) => {
+      const assignment = getAssignmentById(params.id)
+      if (!assignment) return new Response(assignmentNotFound, {
+        status: 404,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+
+      const invalidUpload = (status: number, error: string) => new Response(
+        renderSubmissionForm(assignment.id, assignment.title, error),
+        { status, headers: { 'content-type': 'text/html; charset=utf-8' } },
+      )
+
+      // Allow space for multipart boundaries and metadata in addition to the file.
+      if (Number(request.headers.get('content-length')) > MAX_FILE_BYTES + 64 * 1024) {
+        return invalidUpload(413, 'Files must be 5 MB or smaller.')
+      }
+
+      let form: Awaited<ReturnType<Request['formData']>>
+      try {
+        form = await request.formData()
+      } catch {
+        return invalidUpload(400, 'Choose a file using the upload form.')
+      }
+
+      const [file, ...extraFiles] = form.getAll('file')
+      if (extraFiles.length) return invalidUpload(400, 'Choose one file per submission.')
+
+      const result = submissions.submit(assignment.id, file instanceof File ? file : undefined)
+      if (!result.ok) return invalidUpload(result.status, result.error)
+
+      return new Response(null, {
+        status: 303,
+        headers: { location: `${submissionPath(assignment.id)}/${result.submission.id}` },
+      })
+    }, { parse: 'none' })
+
+    .get('/assignments/:id/submissions/:receipt', ({ params, set }) => {
+      const submission = submissions.find(params.id, params.receipt)
+      if (!submission) return new Response('<h1>Submission not found</h1>', {
+        status: 404,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+      set.headers['content-type'] = 'text/html; charset=utf-8'
+      set.headers['cache-control'] = 'no-store'
+      return renderSubmissionReceipt(submission)
+    })
+
+    .get('/assignments/:id/submissions/:receipt/file', ({ params }) => {
+      const submission = submissions.find(params.id, params.receipt)
+      if (!submission) return new Response('<h1>Submission not found</h1>', {
+        status: 404,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+
+      return new Response(submission.file, {
+        headers: {
+          'content-type': 'application/octet-stream',
+          'content-disposition': 'attachment',
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'no-store',
+        },
+      })
     })
 
     // M04-FR-005: Show the due date form
