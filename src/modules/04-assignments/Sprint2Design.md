@@ -7,9 +7,21 @@ details, and deadline editing. Sprint 2 adds a sample-file submission form,
 server-side upload validation, and a receipt that can be reopened or used
 to retrieve the file.
 
+## Sprint 2 ownership and acceptance checks
+
 The Sprint 1 plan reserved M04-FR-006 through M04-FR-008 for submissions.
-Check the collaborative SRS before reporting the individual mappings or a
-module completion percentage.
+The IDs below are a proposed mapping for the demo. Confirm the official
+wording and acceptance criteria in the collaborative SRS.
+
+| Proposed requirement | Proposed owner | Acceptance check for the demo |
+| -------------------- | -------------- | ----------------------------- |
+| M04-FR-006 — Submit an assignment file | Ishaq | Open the upload form from assignment details and submit a sample file. The response redirects to a receipt for that assignment. |
+| M04-FR-007 — Validate a submission | Abdul | Reject missing, empty, duplicate, oversized, and unsupported files without returning a receipt. |
+| M04-FR-008 — View a receipt and retrieve the file | Lanna | Reopen the receipt and verify the filename, timestamp, and original bytes. The receipt is unavailable under a different assignment. |
+
+These are proposed review and handoff responsibilities. The existing
+implementation is in commit `d536f85`. Record individual contributions
+from the commits or reviews each teammate completes.
 
 ## Application structure
 
